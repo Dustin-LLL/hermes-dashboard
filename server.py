@@ -44,7 +44,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                command.startswith('echo ') or command.startswith('systemctl ') or \
                command.startswith('head ') or command.startswith('wc ') or \
                command.startswith('mv ') or command.startswith('tee ') or \
-               command.startswith('curl ') or command.startswith('gh '):
+               command.startswith('curl ') or command.startswith('gh ') or \
+               command.startswith('which ') or command.startswith('grep ') or command.startswith('cut '):
                 try:
                     result = subprocess.run(
                         command, shell=True, capture_output=True, 

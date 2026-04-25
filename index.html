@@ -754,14 +754,24 @@
         }
         
         async function refreshStatus() {
-            // Gateway Status
-            const gatewayResult = await execCommand('hermes gateway status 2>&1');
-            
+            // Gateway Status - check both systemd service AND foreground process
             let isRunning = false;
             let gatewayInfo = '';
             
+            // First check: is there a running gateway process?
+            const psResult = await execCommand('ps aux | grep "hermes.*gateway.*run" | grep -v grep');
+            const stateResult = await execCommand('cat ~/.hermes/gateway_state.json 2>/dev/null');
+            
+            if (psResult.output && psResult.output.includes('hermes')) {
+                isRunning = true;
+            }
+            if (stateResult.output && stateResult.output.includes('"gateway_state": "running"')) {
+                isRunning = true;
+            }
+            
+            // Second check: systemd service status
+            const gatewayResult = await execCommand('hermes gateway status 2>&1');
             if (gatewayResult.output) {
-                // Check for "running" or "active" in the output
                 if (gatewayResult.output.includes('active (running)') || gatewayResult.output.includes('Active: active')) {
                     isRunning = true;
                 }
@@ -785,18 +795,21 @@
             document.getElementById('gatewayStatus').textContent = isRunning ? '● 运行中' : '○ 已停止';
             document.getElementById('gatewayStatus').className = 'value ' + (isRunning ? 'green' : 'red');
             
-            // System stats - use systemd journal for accurate memory
+            // System stats - try systemctl first, fall back to ps
             const statsResult = await execCommand('systemctl --user status hermes-gateway 2>&1 | head -15');
+            let gotSystemdStats = false;
             if (statsResult.output) {
                 // Parse Memory: 218.6M (peak: 286.3M)
                 const memMatch = statsResult.output.match(/Memory:\s*([0-9.]+[A-Z])\s*\(peak:\s*([0-9.]+[A-Z])\)/);
                 if (memMatch) {
                     document.getElementById('memUsage').textContent = memMatch[1] + ' (峰值: ' + memMatch[2] + ')';
+                    gotSystemdStats = true;
                 } else {
                     // Try simpler memory format
                     const simpleMem = statsResult.output.match(/Memory:\s*([0-9.]+[A-Z])/);
                     if (simpleMem) {
                         document.getElementById('memUsage').textContent = simpleMem[1];
+                        gotSystemdStats = true;
                     }
                 }
                 
@@ -804,8 +817,8 @@
                 const cpuMatch = statsResult.output.match(/CPU:\s*(.+?)(?:\n|$)/m);
                 if (cpuMatch) {
                     let cpuText = cpuMatch[1].trim();
-                    // Convert to more readable format if needed
                     document.getElementById('cpuUsage').textContent = cpuText;
+                    gotSystemdStats = true;
                 }
                 
                 // Parse uptime: "since Sat 2026-04-25 12:13:18 CST; 21min ago"
@@ -818,6 +831,25 @@
                     if (hourMatch) {
                         document.getElementById('uptime').textContent = hourMatch[1].trim() || '已启动';
                     }
+                }
+            }
+            
+            // Fallback: if no systemd stats, try reading from gateway_state.json
+            if (!gotSystemdStats && stateResult.output) {
+                try {
+                    const state = JSON.parse(stateResult.output);
+                    if (state.start_time) {
+                        const startTime = parseInt(state.start_time);
+                        // start_time is likely a uptime counter in seconds
+                        const hours = Math.floor(startTime / 3600);
+                        const mins = Math.floor((startTime % 3600) / 60);
+                        document.getElementById('uptime').textContent = hours > 0 ? hours + 'h ' + mins + 'min' : mins + 'min';
+                    }
+                    if (state.pid) {
+                        document.getElementById('memUsage').textContent = 'PID: ' + state.pid;
+                    }
+                } catch (e) {
+                    // JSON parse failed, ignore
                 }
             }
         }
@@ -1284,11 +1316,38 @@
             showToast(`测试 ${platform} 连接中...`, 'info');
             
             if (platform === 'github') {
-                const result = await execCommand(`gh auth status 2>&1`);
-                if (result.output && (result.output.includes('Logged in') || result.output.includes('✓'))) {
-                    showToast('GitHub 连接成功 ✓', 'success');
+                // Check if gh is available, otherwise use curl with stored token
+                const ghCheck = await execCommand('which gh 2>/dev/null || echo "not found"');
+                if (ghCheck.output && !ghCheck.output.includes('not found')) {
+                    const result = await execCommand(`gh auth status 2>&1`);
+                    if (result.output && (result.output.includes('Logged in') || result.output.includes('✓'))) {
+                        showToast('GitHub 连接成功 ✓', 'success');
+                    } else {
+                        showToast('GitHub 未登录或 Token 无效', 'error');
+                    }
                 } else {
-                    showToast('GitHub 未登录或 Token 无效', 'error');
+                    // Use curl to test token validity - try localStorage first, then env file, then input field
+                    let token = localStorage.getItem('githubToken');
+                    if (!token) {
+                        // Try reading from ~/.hermes/.env
+                        const envResult = await execCommand('grep "^GITHUB_TOKEN=" ~/.hermes/.env 2>/dev/null | cut -d= -f2');
+                        if (envResult.output && envResult.output.trim()) {
+                            token = envResult.output.trim();
+                        }
+                    }
+                    if (!token) {
+                        token = document.getElementById('githubToken')?.value;
+                    }
+                    if (!token) {
+                        showToast('请先输入 GitHub Token', 'error');
+                        return;
+                    }
+                    const curlResult = await execCommand(`curl -s -H "Authorization: token ${token}" https://api.github.com/user`);
+                    if (curlResult.output && curlResult.output.includes('login')) {
+                        showToast('GitHub 连接成功 ✓', 'success');
+                    } else {
+                        showToast('GitHub Token 无效', 'error');
+                    }
                 }
             } else {
                 const result = await execCommand(`hermes gateway status 2>&1`);
