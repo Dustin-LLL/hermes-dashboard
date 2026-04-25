@@ -176,24 +176,7 @@
                 <div class="card">
                     <h2>连接的平台</h2>
                     <div id="connectedPlatforms">
-                        <div class="service-item">
-                            <div class="service-info">
-                                <span class="service-name">WeChat</span>
-                                <span class="service-status active">已连接</span>
-                            </div>
-                        </div>
-                        <div class="service-item">
-                            <div class="service-info">
-                                <span class="service-name">Telegram</span>
-                                <span class="service-status active">已连接</span>
-                            </div>
-                        </div>
-                        <div class="service-item">
-                            <div class="service-info">
-                                <span class="service-name">Home Assistant</span>
-                                <span class="service-status active">已连接</span>
-                            </div>
-                        </div>
+                        <div style="color:#9ca3af;font-size:13px;">加载中...</div>
                     </div>
                 </div>
             </div>
@@ -891,6 +874,44 @@
             
             // Load toolsets
             loadToolsets();
+            
+            // Load connected platforms dynamically
+            loadConnectedPlatforms();
+        }
+        
+        async function loadConnectedPlatforms() {
+            const container = document.getElementById('connectedPlatforms');
+            if (!container) return;
+            
+            const platforms = [
+                { name: 'WeChat', key: 'WEIXIN_ACCOUNT_ID', icon: '💬' },
+                { name: 'Telegram', key: 'TELEGRAM_BOT_TOKEN', icon: '✈️' },
+                { name: 'Home Assistant', key: 'HASS_TOKEN', icon: '🏠' },
+                { name: 'GitHub', key: 'GH_TOKEN_CHECK', icon: '🐙', check: 'gh auth status 2>&1' }
+            ];
+            
+            let html = '';
+            for (const p of platforms) {
+                let connected = false;
+                
+                if (p.check) {
+                    // Use command check (e.g., gh auth status)
+                    const result = await execCommand(p.check);
+                    connected = result.output && (result.output.includes('Logged in') || result.output.includes('✓'));
+                } else {
+                    // Use env var check
+                    const result = await execCommand(`grep ${p.key} ~/.hermes/.env 2>&1`);
+                    connected = result.output && result.output.includes('=') && !result.output.includes('not found');
+                }
+                
+                html += `<div class="service-item">
+                    <div class="service-info">
+                        <span class="service-name">${p.icon} ${p.name}</span>
+                        <span class="service-status ${connected ? 'active' : 'inactive'}">${connected ? '已连接' : '未连接'}</span>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML = html;
         }
         
         async function loadToolsets() {
