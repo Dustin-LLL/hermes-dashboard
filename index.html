@@ -919,14 +919,18 @@
                 { name: 'WeChat', key: 'WEIXIN_ACCOUNT_ID', icon: '💬' },
                 { name: 'Telegram', key: 'TELEGRAM_BOT_TOKEN', icon: '✈️' },
                 { name: 'Home Assistant', key: 'HASS_TOKEN', icon: '🏠' },
-                { name: 'GitHub', key: 'GH_TOKEN_CHECK', icon: '🐙', check: 'gh auth status 2>&1' }
+                { name: 'GitHub', key: 'GITHUB_TOKEN', icon: '🐙', isGithub: true }
             ];
             
             let html = '';
             for (const p of platforms) {
                 let connected = false;
                 
-                if (p.check) {
+                if (p.isGithub) {
+                    // GitHub: check GITHUB_TOKEN env var
+                    const result = await execCommand('grep "^GITHUB_TOKEN=" ~/.hermes/.env 2>/dev/null');
+                    connected = result.output && result.output.includes('=');
+                } else if (p.check) {
                     // Use command check (e.g., gh auth status)
                     const result = await execCommand(p.check);
                     connected = result.output && (result.output.includes('Logged in') || result.output.includes('✓'));
