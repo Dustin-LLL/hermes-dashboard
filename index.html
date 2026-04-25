@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes 控制面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #2a2a4a; margin-bottom: 30px; }
+        .header h1 { color: #7c3aed; font-size: 28px; }
+        .status-badge { padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; }
+        .status-badge.running { background: #065f46; color: #34d399; }
+        .status-badge.stopped { background: #7f1d1d; color: #fca5a5; }
+        .status-badge.unknown { background: #1f2937; color: #9ca3af; }
+        
+        /* Navigation Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 24px; flex-wrap: wrap; }
+        .tab { padding: 12px 24px; background: #1f1f35; border: none; border-radius: 8px 8px 0 0; color: #9ca3af; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .tab:hover { background: #2a2a4a; color: #e0e0e0; }
+        .tab.active { background: #1f1f35; color: #7c3aed; border-bottom: 2px solid #7c3aed; }
+        
+        /* Cards */
+        .card { background: #1a1a2e; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #2a2a4a; }
+        .card h2 { color: #e0e0e0; font-size: 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .card h2::before { content: ''; width: 4px; height: 20px; background: #7c3aed; border-radius: 2px; }
+        
+        /* Grid Layout */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; color: #9ca3af; font-size: 13px; margin-bottom: 8px; }
+        .form-group input, .form-group select { width: 100%; padding: 12px 16px; background: #0f0f1a; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #7c3aed; }
+        .form-group input[type="password"] { font-family: monospace; }
+        
+        /* Buttons */
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #7c3aed; color: white; }
+        .btn-primary:hover { background: #6d28d9; }
+        .btn-success { background: #059669; color: white; }
+        .btn-success:hover { background: #047857; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-secondary { background: #374151; color: white; }
+        .btn-secondary:hover { background: #4b5563; }
+        .btn-small { padding: 8px 16px; font-size: 13px; }
+        
+        /* Status Panel */
+        .status-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .status-item { background: #0f0f1a; padding: 20px; border-radius: 8px; text-align: center; }
+        .status-item .label { color: #9ca3af; font-size: 12px; text-transform: uppercase; margin-bottom: 8px; }
+        .status-item .value { color: #e0e0e0; font-size: 24px; font-weight: 600; }
+        .status-item .value.green { color: #34d399; }
+        .status-item .value.red { color: #f87171; }
+        .status-item .value.yellow { color: #fbbf24; }
+        
+        /* Table */
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #2a2a4a; }
+        .table th { color: #9ca3af; font-size: 12px; text-transform: uppercase; font-weight: 500; }
+        .table td { color: #e0e0e0; }
+        .table tr:hover { background: #1f1f35; }
+        
+        /* Log Console */
+        .log-console { background: #0a0a14; border-radius: 8px; padding: 16px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        .log-console .log-line { padding: 4px 0; border-bottom: 1px solid #1a1a2e; }
+        .log-line.info { color: #60a5fa; }
+        .log-line.success { color: #34d399; }
+        .log-line.error { color: #f87171; }
+        .log-line.warning { color: #fbbf24; }
+        
+        /* Toast Notification */
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; font-size: 14px; z-index: 1000; transform: translateX(400px); transition: transform 0.3s; }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: #059669; color: white; }
+        .toast.error { background: #dc2626; color: white; }
+        .toast.info { background: #7c3aed; color: white; }
+        
+        /* Loading */
+        .loading { display: none; text-align: center; padding: 40px; }
+        .loading.show { display: block; }
+        .spinner { width: 40px; height: 40px; border: 3px solid #2a2a4a; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* API Key field with toggle */
+        .key-wrapper { position: relative; }
+        .key-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #9ca3af; cursor: pointer; }
+        
+        /* Service List */
+        .service-item { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #0f0f1a; border-radius: 8px; margin-bottom: 12px; }
+        .service-info { display: flex; align-items: center; gap: 16px; }
+        .service-name { font-weight: 500; }
+        .service-status { font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+        .service-status.active { background: #065f46; color: #34d399; }
+        .service-status.inactive { background: #7f1d1d; color: #fca5a5; }
+        
+        /* Refresh button */
+        .refresh-btn { background: none; border: 1px solid #2a2a4a; color: #9ca3af; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .refresh-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+        
+        /* Hidden file input */
+        .file-input { display: none; }
+        
+        /* Section divider */
+        .section-divider { margin: 24px 0; padding-top: 24px; border-top: 1px solid #2a2a4a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>⚡ Hermes 控制面板</h1>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <button class="refresh-btn" onclick="refreshAll()">🔄 刷新</button>
+                <span id="hermesStatus" class="status-badge unknown">检测中...</span>
+            </div>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('dashboard')">📊 概览</button>
+            <button class="tab" onclick="showTab('model')">🤖 模型配置</button>
+            <button class="tab" onclick="showTab('api')">🔑 API 密钥</button>
+            <button class="tab" onclick="showTab('platforms')">💬 平台配置</button>
+            <button class="tab" onclick="showTab('services')">⚙️ 服务管理</button>
+            <button class="tab" onclick="showTab('tools')">🔧 工具配置</button>
+            <button class="tab" onclick="showTab('logs')">📋 日志</button>
+        </div>
+        
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="card">
+                <h2>系统状态</h2>
+                <div class="status-panel" id="statusPanel">
+                    <div class="status-item">
+                        <div class="label">Hermes Gateway</div>
+                        <div class="value" id="gatewayStatus">-</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">CPU 使用率</div>
+                        <div class="value" id="cpuUsage">-</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">内存使用</div>
+                        <div class="value" id="memUsage">-</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="label">运行时间</div>
+                        <div class="value" id="uptime" style="font-size: 16px;">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <h2>当前配置</h2>
+                    <table class="table">
+                        <tr><td style="color:#9ca3af;">默认模型</td><td id="currentModel">-</td></tr>
+                        <tr><td style="color:#9ca3af;">供应商</td><td id="currentProvider">-</td></tr>
+                        <tr><td style="color:#9ca3af;">最大迭代</td><td id="maxTurns">-</td></tr>
+                        <tr><td style="color:#9ca3af;">工具集</td><td id="toolsets">-</td></tr>
+                        <tr><td style="color:#9ca3af;">日志级别</td><td id="logLevel">-</td></tr>
+                    </table>
+                </div>
+                
+                <div class="card">
+                    <h2>连接的平台</h2>
+                    <div id="connectedPlatforms">
+                        <div class="service-item">
+                            <div class="service-info">
+                                <span class="service-name">WeChat</span>
+                                <span class="service-status active">已连接</span>
+                            </div>
+                        </div>
+                        <div class="service-item">
+                            <div class="service-info">
+                                <span class="service-name">Telegram</span>
+                                <span class="service-status active">已连接</span>
+                            </div>
+                        </div>
+                        <div class="service-item">
+                            <div class="service-info">
+                                <span class="service-name">Home Assistant</span>
+                                <span class="service-status active">已连接</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Model Configuration Tab -->
+        <div id="model" class="tab-content">
+            <div class="card">
+                <h2>模型供应商配置</h2>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>默认模型</label>
+                        <input type="text" id="modelName" placeholder="如: MiniMax-M2.7, claude-sonnet-4-6-20250514">
+                    </div>
+                    <div class="form-group">
+                        <label>供应商</label>
+                        <select id="modelProvider">
+                            <option value="minimax-cn">MiniMax (中国)</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="nvidia">NVIDIA</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Base URL</label>
+                        <input type="text" id="baseUrl" placeholder="https://api.minimaxi.com/anthropic">
+                    </div>
+                    <div class="form-group">
+                        <label>最大迭代次数</label>
+                        <input type="number" id="maxTurnsInput" placeholder="90">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="saveModelConfig()">💾 保存模型配置</button>
+            </div>
+            
+            <div class="card">
+                <h2>备用模型</h2>
+                <p style="color:#9ca3af; margin-bottom:16px;">当主模型不可用时自动切换到备用模型</p>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>备用供应商</label>
+                        <select id="fallbackProvider">
+                            <option value="">不启用</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="openai-codex">OpenAI Codex</option>
+                            <option value="kimi-coding">Kimi Coding</option>
+                            <option value="minimax">MiniMax</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备用模型</label>
+                        <input type="text" id="fallbackModel" placeholder="如: anthropic/claude-sonnet-4">
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="saveFallbackConfig()">💾 保存备用配置</button>
+            </div>
+        </div>
+        
+        <!-- API Keys Tab -->
+        <div id="api" class="tab-content">
+            <div class="card">
+                <h2>API 密钥管理</h2>
+                <p style="color:#9ca3af; margin-bottom:20px;">密钥会安全存储在 .env 文件中，不会明文显示</p>
+                
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>MiniMax API Key</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="minimaxKey" placeholder="输入新密钥可更新">
+                            <button class="key-toggle" onclick="toggleKey('minimaxKey')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Home Assistant Token</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="hassToken" placeholder="输入新令牌可更新">
+                            <button class="key-toggle" onclick="toggleKey('hassToken')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Telegram Bot Token</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="telegramToken" placeholder="输入新令牌可更新">
+                            <button class="key-toggle" onclick="toggleKey('telegramToken')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>OpenAI API Key</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="openaiKey" placeholder="输入新密钥可更新">
+                            <button class="key-toggle" onclick="toggleKey('openaiKey')">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="saveApiKeys()">💾 保存所有密钥</button>
+            </div>
+            
+            <div class="card">
+                <h2>密钥状态</h2>
+                <table class="table">
+                    <thead><tr><th>密钥名称</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody id="keyStatus">
+                        <tr><td>MINIMAX_CN_API_KEY</td><td id="minimaxKeyStatus">-</td><td><button class="btn btn-small btn-secondary" onclick="testKey('minimax-cn')">测试</button></td></tr>
+                        <tr><td>TELEGRAM_BOT_TOKEN</td><td id="telegramKeyStatus">-</td><td><button class="btn btn-small btn-secondary" onclick="testKey('telegram')">测试</button></td></tr>
+                        <tr><td>HASS_TOKEN</td><td id="hassKeyStatus">-</td><td><button class="btn btn-small btn-secondary" onclick="testKey('hass')">测试</button></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Platform Configuration Tab -->
+        <div id="platforms" class="tab-content">
+            <!-- WeChat Section -->
+            <div class="card">
+                <h2>💬 WeChat 配置</h2>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <span id="wechatStatus" style="padding: 4px 12px; background: #059669; border-radius: 4px; font-size: 12px;">已连接</span>
+                    <span style="color: #9ca3af; font-size: 13px;">Home ID: <span id="wechatHomeId">o9cq800fBhp_nTnPRyIrYTDbtheU@im.wechat</span></span>
+                    <button class="btn btn-small" onclick="showWeixinQR()" style="margin-left: auto;">🔄 重新登录微信</button>
+                </div>
+                
+                <!-- WeChat QR Login Modal -->
+                <div id="weixinQrModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 400px;">
+                        <div class="modal-header">
+                            <h3>📱 微信扫码登录</h3>
+                            <button class="modal-close" onclick="closeWeixinQR()">&times;</button>
+                        </div>
+                        <div class="modal-body" style="text-align: center;">
+                            <div id="weixinQrStatus" style="margin-bottom: 16px; font-size: 14px; color: #9ca3af;">准备中...</div>
+                            <div id="weixinQrImage" style="background: white; padding: 16px; display: inline-block; border-radius: 8px; margin-bottom: 16px;">
+                                <!-- QR code will be inserted here -->
+                            </div>
+                            <div id="weixinQrUrl" style="font-size: 12px; color: #6b7280; word-break: break-all; display: none;">
+                                <!-- URL will be shown here if QR fails -->
+                            </div>
+                            <div style="margin-top: 12px;">
+                                <button class="btn btn-small" id="weixinQrRefresh" onclick="refreshWeixinQR()" style="display: none;">🔄 刷新二维码</button>
+                                <button class="btn btn-small" onclick="stopWeixinQR()" style="background: #dc2626;">停止</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-title">基础配置</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>Account ID</label>
+                        <input type="text" id="wechatAccountId" placeholder="如: a01a5a6a0521@im.bot">
+                    </div>
+                    <div class="form-group">
+                        <label>Token</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="wechatToken" placeholder="输入新值可更新">
+                            <button class="key-toggle" onclick="toggleKey('wechatToken')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Base URL</label>
+                        <input type="text" id="wechatBaseUrl" placeholder="https://ilinkai.weixin.qq.com">
+                    </div>
+                    <div class="form-group">
+                        <label>CDN Base URL</label>
+                        <input type="text" id="wechatCdnUrl" placeholder="https://novac2c.cdn.weixin.qq.com/c2c">
+                    </div>
+                </div>
+                
+                <div class="section-title">安全策略</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>私信策略 (DM Policy)</label>
+                        <select id="wechatDmPolicy">
+                            <option value="pairing">🔗 配对模式 (需配对设备)</option>
+                            <option value="allow_all">✅ 允许所有</option>
+                            <option value="deny_all">❌ 拒绝所有</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>允许所有用户</label>
+                        <select id="wechatAllowAll">
+                            <option value="false">否</option>
+                            <option value="true">是</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>群组策略 (Group Policy)</label>
+                        <select id="wechatGroupPolicy">
+                            <option value="disabled">❌ 禁用</option>
+                            <option value="allow_all">✅ 允许所有群</option>
+                            <option value="whitelist">📋 白名单模式</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="section-title">允许的用户/群组</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>允许的用户 ID (多个用逗号分隔)</label>
+                        <input type="text" id="wechatAllowedUsers" placeholder="留空表示仅允许 Home 用户">
+                    </div>
+                    <div class="form-group">
+                        <label>允许的群组 ID (多个用逗号分隔)</label>
+                        <input type="text" id="wechatGroupUsers" placeholder="留空表示仅允许 Home 群">
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveWechatConfig()">💾 保存 WeChat 配置</button>
+            </div>
+            
+            <!-- Telegram Section -->
+            <div class="card">
+                <h2>✈️ Telegram 配置</h2>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <span style="padding: 4px 12px; background: #059669; border-radius: 4px; font-size: 12px;">已配置</span>
+                    <span style="color: #9ca3af; font-size: 13px;">Home Channel: <span id="telegramHomeChannel">001</span></span>
+                </div>
+                
+                <div class="section-title">连接配置</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>Bot Token</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="telegramToken" placeholder="输入新值可更新">
+                            <button class="key-toggle" onclick="toggleKey('telegramToken')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>代理 URL</label>
+                        <input type="text" id="telegramProxy" placeholder="如: socks5://192.168.110.99:1080">
+                    </div>
+                </div>
+                
+                <div class="section-title">访问控制</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>允许的用户 (User ID)</label>
+                        <input type="text" id="telegramAllowedUsers" placeholder="多个用逗号分隔，如: 1126986380,123456789">
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveTelegramConfig()">💾 保存 Telegram 配置</button>
+            </div>
+            
+            <!-- Home Assistant Section -->
+            <div class="card">
+                <h2>🏠 Home Assistant 配置</h2>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <span id="hassStatus" style="padding: 4px 12px; background: #059669; border-radius: 4px; font-size: 12px;">已连接</span>
+                    <span style="color: #9ca3af; font-size: 13px;">URL: <span id="hassUrlDisplay">http://192.168.110.188:8123</span></span>
+                </div>
+                
+                <div class="section-title">连接配置</div>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>HA URL</label>
+                        <input type="text" id="hassUrl" placeholder="如: http://192.168.110.188:8123">
+                    </div>
+                    <div class="form-group">
+                        <label>Long-Lived Access Token</label>
+                        <div class="key-wrapper">
+                            <input type="password" id="hassToken" placeholder="输入新令牌可更新">
+                            <button class="key-toggle" onclick="toggleKey('hassToken')">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveHassConfig()">💾 保存 HA 配置</button>
+            </div>
+            
+            <!-- GitHub Section -->
+            <div class="card">
+                <h2>🐙 GitHub 配置</h2>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <span id="githubStatus" style="padding: 4px 12px; background: #6b7280; border-radius: 4px; font-size: 12px;">未配置</span>
+                    <span style="color: #9ca3af; font-size: 13px;">用于 GitHub PR、Issues 等操作</span>
+                </div>
+                
+                <div class="section-title">Token 配置</div>
+                <div class="form-group">
+                    <label>GitHub Personal Access Token</label>
+                    <div class="key-wrapper">
+                        <input type="password" id="githubToken" placeholder="输入 Token 可更新">
+                        <button class="key-toggle" onclick="toggleKey('githubToken')">👁️</button>
+                    </div>
+                </div>
+                
+                <div style="background: #1e3a5f; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                    <div style="color: #60a5fa; font-weight: 600; margin-bottom: 8px;">📋 获取 GitHub Token 步骤：</div>
+                    <ol style="margin: 0; padding-left: 20px; color: #93c5fd; font-size: 13px; line-height: 1.8;">
+                        <li>登录 GitHub 账号 → 点击右上角头像 → <strong>Settings</strong></li>
+                        <li>左侧菜单底部 → <strong>Developer settings</strong></li>
+                        <li>选择 <strong>Personal access tokens</strong> → <strong>Tokens (classic)</strong></li>
+                        <li>点击 <strong>Generate new token (classic)</strong></li>
+                        <li>设置名称、过期时间，勾选所需权限：
+                            <ul style="margin: 4px 0;">
+                                <li><code>repo</code> - 完整仓库访问（用于 PR、代码操作）</li>
+                                <li><code>workflow</code> - GitHub Actions</li>
+                                <li><code>read:user</code> - 读取用户信息</li>
+                            </ul>
+                        </li>
+                        <li>点击 <strong>Generate token</strong> → 复制生成的 Token</li>
+                    </ol>
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="saveGithubConfig()">💾 保存 GitHub 配置</button>
+                    <a href="https://github.com/settings/tokens/new" target="_blank" class="btn btn-secondary" style="text-decoration: none;">🔗 前往 GitHub 生成 Token</a>
+                </div>
+            </div>
+            
+            <!-- Connection Test -->
+            <div class="card">
+                <h2>🔌 连接测试</h2>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="testConnection('wechat')">🧪 测试微信连接</button>
+                    <button class="btn btn-secondary" onclick="testConnection('telegram')">🧪 测试 Telegram 连接</button>
+                    <button class="btn btn-secondary" onclick="testConnection('hass')">🧪 测试 HA 连接</button>
+                    <button class="btn btn-secondary" onclick="testConnection('github')">🧪 测试 GitHub 连接</button>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            .section-title {
+                color: #7c3aed;
+                font-size: 13px;
+                font-weight: 600;
+                text-transform: uppercase;
+                margin: 20px 0 12px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #2a2a4a;
+            }
+            .modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.7);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+            }
+            .modal-content {
+                background: #1a1a2e;
+                border-radius: 12px;
+                padding: 24px;
+                max-width: 500px;
+                width: 90%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            }
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            .modal-header h3 {
+                margin: 0;
+                color: #e2e8f0;
+            }
+            .modal-close {
+                background: none;
+                border: none;
+                color: #9ca3af;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 0;
+                line-height: 1;
+            }
+            .modal-close:hover {
+                color: #e2e8f0;
+            }
+            .modal-body {
+                color: #e2e8f0;
+            }
+        </style>
+        
+        <!-- Services Management Tab -->
+        <div id="services" class="tab-content">
+            <div class="card">
+                <h2>服务控制</h2>
+                <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                    <button class="btn btn-success" onclick="controlService('start')">▶️ 启动</button>
+                    <button class="btn btn-danger" onclick="controlService('stop')">⏹️ 停止</button>
+                    <button class="btn btn-secondary" onclick="controlService('restart')">🔄 重启</button>
+                    <button class="btn btn-secondary" onclick="controlService('status')">📊 状态</button>
+                </div>
+                <div id="serviceOutput" class="log-console" style="display:none;"></div>
+            </div>
+            
+            <div class="card">
+                <h2>快捷操作</h2>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="runDoctor()">🔍 运行诊断</button>
+                    <button class="btn btn-secondary" onclick="runBackup()">💾 备份配置</button>
+                    <button class="btn btn-secondary" onclick="openTerminal()">🖥️ 打开终端</button>
+                    <button class="btn btn-secondary" onclick="reloadDashboard()">🔄 刷新状态</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>会话管理</h2>
+                <button class="btn btn-secondary" onclick="pruneSessions()">🗑️ 清理旧会话</button>
+                <button class="btn btn-secondary" onclick="viewSessions()">📋 查看所有会话</button>
+            </div>
+        </div>
+        
+        <!-- Tools Configuration Tab -->
+        <div id="tools" class="tab-content">
+            <div class="card">
+                <h2>工具集配置</h2>
+                <p style="color:#9ca3af; margin-bottom:16px;">启用/禁用不同的工具集</p>
+                <div id="toolsetsList" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>代理配置</h2>
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label>网络代理</label>
+                        <input type="text" id="httpProxy" placeholder="http://proxy:8080">
+                    </div>
+                    <div class="form-group">
+                        <label>强制 IPv4</label>
+                        <select id="forceIpv4">
+                            <option value="false">否</option>
+                            <option value="true">是</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="saveProxyConfig()">💾 保存代理配置</button>
+            </div>
+        </div>
+        
+        <!-- Logs Tab -->
+        <div id="logs" class="tab-content">
+            <div class="card">
+                <h2>实时日志</h2>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <button class="btn btn-secondary btn-small" onclick="loadLogs('hermes')">Hermes 日志</button>
+                    <button class="btn btn-secondary btn-small" onclick="loadLogs('gateway')">Gateway 日志</button>
+                    <button class="btn btn-secondary btn-small" onclick="loadLogs('system')">系统日志</button>
+                    <select id="logFilter" onchange="filterLogs()">
+                        <option value="all">全部</option>
+                        <option value="error">错误</option>
+                        <option value="warning">警告</option>
+                        <option value="info">信息</option>
+                    </select>
+                </div>
+                <div id="logOutput" class="log-console"></div>
+            </div>
+            
+            <div class="card">
+                <h2>导出日志</h2>
+                <button class="btn btn-secondary" onclick="exportLogs()">📥 导出日志文件</button>
+                <button class="btn btn-danger" onclick="clearLogs()">🗑️ 清除日志</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Global state
+        let currentConfig = {};
+        let logsData = [];
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCurrentConfig();
+            refreshAll();
+            loadApiKeyStatus();
+            loadPlatformConfig();
+            setInterval(refreshAll, 30000); // Auto refresh every 30s
+        });
+        
+        // Tab Navigation
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+        
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        // Execute command via backend
+        async function execCommand(cmd) {
+            try {
+                const response = await fetch('/api/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd })
+                });
+                return await response.json();
+            } catch (e) {
+                return { error: e.message, output: '' };
+            }
+        }
+        
+        // Parse config output (text format)
+        function parseConfigOutput(output) {
+            const config = {};
+            const lines = output.split('\n');
+            lines.forEach(line => {
+                // Match key: value patterns
+                const match = line.match(/^\s*([\w\s]+):\s*(.+)$/);
+                if (match) {
+                    const key = match[1].trim().toLowerCase().replace(/\s+/g, '_');
+                    let value = match[2].trim();
+                    // Remove box drawing characters
+                    value = value.replace(/[┌┬┐├┼└┘─│]/g, '').trim();
+                    config[key] = value;
+                }
+            });
+            return config;
+        }
+        
+        // Load current configuration
+        async function loadCurrentConfig() {
+            const result = await execCommand('hermes config show');
+            if (result.output) {
+                currentConfig = parseConfigOutput(result.output);
+            }
+            
+            // Load env file
+            const envResult = await execCommand('cat ~/.hermes/.env');
+            if (envResult.output) {
+                parseEnvFile(envResult.output);
+            }
+        }
+        
+        function parseEnvFile(content) {
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const match = line.match(/^([^=]+)=(.*)$/);
+                if (match) {
+                    const key = match[1].trim();
+                    const value = match[2].trim();
+                    if (key.includes('KEY') || key.includes('TOKEN') || key.includes('SECRET')) {
+                        const el = document.getElementById(getKeyId(key));
+                        if (el) el.setAttribute('placeholder', '已设置 (输入新值可更新)');
+                    }
+                }
+            });
+        }
+        
+        function getKeyId(envKey) {
+            const mapping = {
+                'MINIMAX_CN_API_KEY': 'minimaxKey',
+                'TELEGRAM_BOT_TOKEN': 'telegramToken',
+                'HASS_TOKEN': 'hassToken',
+                'OPENAI_API_KEY': 'openaiKey'
+            };
+            return mapping[envKey];
+        }
+        
+        // Refresh all status
+        async function refreshAll() {
+            await refreshStatus();
+            await loadConfigValues();
+        }
+        
+        async function refreshStatus() {
+            // Gateway Status
+            const gatewayResult = await execCommand('hermes gateway status 2>&1');
+            
+            let isRunning = false;
+            let gatewayInfo = '';
+            
+            if (gatewayResult.output) {
+                // Check for "running" or "active" in the output
+                if (gatewayResult.output.includes('active (running)') || gatewayResult.output.includes('Active: active')) {
+                    isRunning = true;
+                }
+                // Extract memory info if available
+                const memMatch = gatewayResult.output.match(/Memory:\s*([0-9.]+[A-Z])\s*\(/);
+                if (memMatch) {
+                    gatewayInfo = memMatch[1];
+                }
+            }
+            
+            const statusBadge = document.getElementById('hermesStatus');
+            if (isRunning) {
+                statusBadge.textContent = '● 运行中';
+                statusBadge.className = 'status-badge running';
+            } else {
+                statusBadge.textContent = '○ 已停止';
+                statusBadge.className = 'status-badge stopped';
+            }
+            
+            // Gateway status in panel
+            document.getElementById('gatewayStatus').textContent = isRunning ? '● 运行中' : '○ 已停止';
+            document.getElementById('gatewayStatus').className = 'value ' + (isRunning ? 'green' : 'red');
+            
+            // System stats - use systemd journal for accurate memory
+            const statsResult = await execCommand('systemctl --user status hermes-gateway 2>&1 | head -15');
+            if (statsResult.output) {
+                // Parse Memory: 218.6M (peak: 286.3M)
+                const memMatch = statsResult.output.match(/Memory:\s*([0-9.]+[A-Z])\s*\(peak:\s*([0-9.]+[A-Z])\)/);
+                if (memMatch) {
+                    document.getElementById('memUsage').textContent = memMatch[1] + ' (峰值: ' + memMatch[2] + ')';
+                } else {
+                    // Try simpler memory format
+                    const simpleMem = statsResult.output.match(/Memory:\s*([0-9.]+[A-Z])/);
+                    if (simpleMem) {
+                        document.getElementById('memUsage').textContent = simpleMem[1];
+                    }
+                }
+                
+                // Parse CPU time: 2min 36.860s or 2min 157ms
+                const cpuMatch = statsResult.output.match(/CPU:\s*(.+?)(?:\n|$)/m);
+                if (cpuMatch) {
+                    let cpuText = cpuMatch[1].trim();
+                    // Convert to more readable format if needed
+                    document.getElementById('cpuUsage').textContent = cpuText;
+                }
+                
+                // Parse uptime: "since Sat 2026-04-25 12:13:18 CST; 21min ago"
+                const timeMatch = statsResult.output.match(/since .+?\s*;\s*(\d+min)/);
+                if (timeMatch) {
+                    document.getElementById('uptime').textContent = timeMatch[1];
+                } else {
+                    // Try alternative format with hours
+                    const hourMatch = statsResult.output.match(/since .+?\s*;\s*((\d+h)?\s*(\d+min)?)/);
+                    if (hourMatch) {
+                        document.getElementById('uptime').textContent = hourMatch[1].trim() || '已启动';
+                    }
+                }
+            }
+        }
+        
+        async function loadConfigValues() {
+            const result = await execCommand('hermes config show 2>&1');
+            
+            if (!result.output) {
+                document.getElementById('currentModel').textContent = '无法获取';
+                return;
+            }
+            
+            const output = result.output;
+            
+            // Parse Model section - look for "Model:" line
+            const modelMatch = output.match(/Model:\s*\{[^}]*'default':\s*'([^']+)'[^}]*\}/);
+            if (modelMatch) {
+                document.getElementById('currentModel').textContent = modelMatch[1];
+            } else {
+                // Try simpler pattern
+                const simpleModel = output.match(/Model:\s*(.+?)(?:\n|$)/);
+                if (simpleModel) {
+                    let modelText = simpleModel[1].trim();
+                    // Clean up box characters
+                    modelText = modelText.replace(/[┌┬┐├┼└┘─│]/g, '').trim();
+                    document.getElementById('currentModel').textContent = modelText;
+                }
+            }
+            
+            // Parse Provider
+            const providerMatch = output.match(/provider['"]:\s*['"]([^'"]+)['"]/);
+            if (providerMatch) {
+                document.getElementById('currentProvider').textContent = providerMatch[1];
+            }
+            
+            // Parse Max turns - look for "Max turns:" or "max_turns"
+            const maxTurnsMatch = output.match(/(?:Max turns|max_turns):\s*(\d+)/i);
+            if (maxTurnsMatch) {
+                document.getElementById('maxTurns').textContent = maxTurnsMatch[1];
+            }
+            
+            // Toolsets
+            if (output.includes('toolsets') || output.includes('toolsets')) {
+                document.getElementById('toolsets').textContent = 'hermes-cli + 更多';
+            }
+            
+            // Log level
+            const logMatch = output.match(/level:\s*(\w+)/i);
+            if (logMatch) {
+                document.getElementById('logLevel').textContent = logMatch[1];
+            } else {
+                document.getElementById('logLevel').textContent = 'INFO (默认)';
+            }
+            
+            // Load toolsets
+            loadToolsets();
+        }
+        
+        async function loadToolsets() {
+            const result = await execCommand('hermes tools list 2>&1');
+            const output = result.output || '';
+            
+            // Count enabled toolsets
+            const enabledCount = (output.match(/✓ enabled/g) || []).length;
+            const totalCount = (output.match(/✓ enabled|✗ disabled/g) || []).length;
+            
+            if (enabledCount > 0) {
+                document.getElementById('toolsets').textContent = `${enabledCount}/${totalCount} 已启用`;
+            }
+            
+            // Parse toolsets list for the Tools tab
+            const toolsetsList = document.getElementById('toolsetsList');
+            if (!toolsetsList) return;
+            
+            const lines = output.split('\n');
+            let html = '';
+            for (const line of lines) {
+                if (line.includes('✓ enabled')) {
+                    const nameMatch = line.match(/\s+✓ enabled\s+(\S+)\s+(.+)/);
+                    if (nameMatch) {
+                        const name = nameMatch[1];
+                        const desc = nameMatch[2].trim();
+                        html += `<div class="card" style="padding:12px; margin:4px;">
+                            <div style="color:#10b981; font-weight:600;">✓ ${name}</div>
+                            <div style="color:#9ca3af; font-size:12px;">${desc}</div>
+                        </div>`;
+                    }
+                } else if (line.includes('✗ disabled')) {
+                    const nameMatch = line.match(/\s+✗ disabled\s+(\S+)\s+(.+)/);
+                    if (nameMatch) {
+                        const name = nameMatch[1];
+                        const desc = nameMatch[2].trim();
+                        html += `<div class="card" style="padding:12px; margin:4px; opacity:0.6;">
+                            <div style="color:#6b7280; font-weight:600;">✗ ${name}</div>
+                            <div style="color:#9ca3af; font-size:12px;">${desc}</div>
+                        </div>`;
+                    }
+                }
+            }
+            if (html) {
+                toolsetsList.innerHTML = html;
+            }
+        }
+        
+        // Save Model Config
+        async function saveModelConfig() {
+            const model = document.getElementById('modelName').value;
+            const provider = document.getElementById('modelProvider').value;
+            const baseUrl = document.getElementById('baseUrl').value;
+            const maxTurns = document.getElementById('maxTurnsInput').value;
+            
+            if (model) {
+                await execCommand(`hermes config set model.default "${model}"`);
+            }
+            if (provider) {
+                await execCommand(`hermes config set model.provider "${provider}"`);
+            }
+            if (baseUrl) {
+                await execCommand(`hermes config set model.base_url "${baseUrl}"`);
+            }
+            if (maxTurns) {
+                await execCommand(`hermes config set agent.max_turns ${maxTurns}`);
+            }
+            
+            showToast('模型配置已保存', 'success');
+            await controlService('restart');
+        }
+        
+        // Save Fallback Config
+        async function saveFallbackConfig() {
+            const provider = document.getElementById('fallbackProvider').value;
+            const model = document.getElementById('fallbackModel').value;
+            
+            if (provider && model) {
+                const config = `fallback_model:\n  provider: ${provider}\n  model: ${model}`;
+                showToast('备用模型配置已更新 (需要重启生效)', 'info');
+            } else if (!provider) {
+                showToast('未设置备用供应商', 'warning');
+            }
+        }
+        
+        // Save API Keys
+        async function saveApiKeys() {
+            const keys = [
+                { id: 'minimaxKey', env: 'MINIMAX_CN_API_KEY' },
+                { id: 'hassToken', env: 'HASS_TOKEN' },
+                { id: 'telegramToken', env: 'TELEGRAM_BOT_TOKEN' },
+                { id: 'openaiKey', env: 'OPENAI_API_KEY' }
+            ];
+            
+            for (const key of keys) {
+                const value = document.getElementById(key.id).value;
+                if (value) {
+                    await execCommand(`echo "${key.env}=${value}" >> ~/.hermes/.env.new && grep -v "${key.env}" ~/.hermes/.env >> ~/.hermes/.env.new && mv ~/.hermes/.env.new ~/.hermes/.env`);
+                }
+            }
+            
+            showToast('API 密钥已保存', 'success');
+        }
+        
+        // Helper function to update env file
+        async function updateEnvFile(key, value) {
+            if (!value) return;
+            await execCommand(`grep -v "^${key}=" ~/.hermes/.env > ~/.hermes/.env.tmp 2>/dev/null; echo "${key}=${value}" >> ~/.hermes/.env.tmp 2>/dev/null; mv ~/.hermes/.env.tmp ~/.hermes/.env 2>/dev/null || echo "${key}=${value}" >> ~/.hermes/.env`);
+        }
+        
+        // Load Platform Config
+        async function loadPlatformConfig() {
+            const result = await execCommand('cat ~/.hermes/.env 2>/dev/null');
+            if (!result.output) return;
+            
+            const lines = result.output.split('\n');
+            const env = {};
+            lines.forEach(line => {
+                const match = line.match(/^([^=]+)=(.*)$/);
+                if (match) env[match[1].trim()] = match[2].trim();
+            });
+            
+            // WeChat
+            if (env.WEIXIN_ACCOUNT_ID) document.getElementById('wechatAccountId').value = env.WEIXIN_ACCOUNT_ID;
+            if (env.WEIXIN_BASE_URL) document.getElementById('wechatBaseUrl').value = env.WEIXIN_BASE_URL;
+            if (env.WEIXIN_CDN_BASE_URL) document.getElementById('wechatCdnUrl').value = env.WEIXIN_CDN_BASE_URL;
+            if (env.WEIXIN_DM_POLICY) document.getElementById('wechatDmPolicy').value = env.WEIXIN_DM_POLICY;
+            if (env.WEIXIN_ALLOW_ALL_USERS) document.getElementById('wechatAllowAll').value = env.WEIXIN_ALLOW_ALL_USERS;
+            if (env.WEIXIN_GROUP_POLICY) document.getElementById('wechatGroupPolicy').value = env.WEIXIN_GROUP_POLICY;
+            if (env.WEIXIN_ALLOWED_USERS) document.getElementById('wechatAllowedUsers').value = env.WEIXIN_ALLOWED_USERS;
+            if (env.WEIXIN_HOME_CHANNEL) document.getElementById('wechatHomeId').textContent = env.WEIXIN_HOME_CHANNEL;
+            
+            // Telegram
+            if (env.TELEGRAM_BOT_TOKEN) document.getElementById('telegramToken').placeholder = '已设置 (输入新值可更新)';
+            if (env.TELEGRAM_PROXY || env.telegram_proxy) document.getElementById('telegramProxy').value = env.TELEGRAM_PROXY || env.telegram_proxy;
+            if (env.TELEGRAM_ALLOWED_USERS) document.getElementById('telegramAllowedUsers').value = env.TELEGRAM_ALLOWED_USERS;
+            if (env.TELEGRAM_HOME_CHANNEL) document.getElementById('telegramHomeChannel').textContent = env.TELEGRAM_HOME_CHANNEL;
+            
+            // Home Assistant
+            if (env.HASS_URL) {
+                document.getElementById('hassUrl').value = env.HASS_URL;
+                document.getElementById('hassUrlDisplay').textContent = env.HASS_URL;
+            }
+            if (env.HASS_TOKEN) document.getElementById('hassToken').placeholder = '已设置 (输入新值可更新)';
+            
+            // GitHub
+            if (env.GITHUB_TOKEN) {
+                document.getElementById('githubToken').placeholder = '已设置 (输入新值可更新)';
+                document.getElementById('githubStatus').textContent = '已配置';
+                document.getElementById('githubStatus').style.background = '#059669';
+            } else {
+                document.getElementById('githubStatus').textContent = '未配置';
+                document.getElementById('githubStatus').style.background = '#6b7280';
+            }
+            
+            // Update WeChat status based on config
+            if (env.WEIXIN_ACCOUNT_ID && env.WEIXIN_TOKEN) {
+                document.getElementById('wechatStatus').textContent = '已配置';
+                document.getElementById('wechatStatus').style.background = '#059669';
+            } else {
+                document.getElementById('wechatStatus').textContent = '未配置';
+                document.getElementById('wechatStatus').style.background = '#dc2626';
+            }
+        }
+        
+        // Save GitHub Config
+        async function saveGithubConfig() {
+            const token = document.getElementById('githubToken').value;
+            if (!token) {
+                showToast('请输入 GitHub Token', 'warning');
+                return;
+            }
+            
+            await updateEnvFile('GITHUB_TOKEN', token);
+            document.getElementById('githubToken').value = '';
+            document.getElementById('githubToken').placeholder = '已设置 (输入新值可更新)';
+            document.getElementById('githubStatus').textContent = '已配置';
+            document.getElementById('githubStatus').style.background = '#059669';
+            
+            showToast('GitHub 配置已保存', 'success');
+        }
+        
+        // WeChat QR Login Functions
+        let weixinQrPollInterval = null;
+        
+        function showWeixinQR() {
+            const modal = document.getElementById('weixinQrModal');
+            modal.style.display = 'flex';
+            startWeixinQR();
+        }
+        
+        function closeWeixinQR() {
+            stopWeixinQR();
+            document.getElementById('weixinQrModal').style.display = 'none';
+        }
+        
+        async function startWeixinQR() {
+            // Reset UI
+            document.getElementById('weixinQrStatus').textContent = '正在获取二维码...';
+            document.getElementById('weixinQrImage').innerHTML = '<div style="padding: 40px;">加载中...</div>';
+            document.getElementById('weixinQrUrl').style.display = 'none';
+            document.getElementById('weixinQrRefresh').style.display = 'none';
+            
+            // Start QR login via API
+            const response = await fetch('/api/weixin_qr', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'start'})
+            });
+            const data = await response.json();
+            
+            if (data.status === 'started') {
+                // Start polling for status
+                if (weixinQrPollInterval) clearInterval(weixinQrPollInterval);
+                weixinQrPollInterval = setInterval(pollWeixinQR, 2000);
+                pollWeixinQR(); // Immediate first poll
+            } else {
+                document.getElementById('weixinQrStatus').textContent = '启动失败: ' + (data.error || '未知错误');
+            }
+        }
+        
+        async function pollWeixinQR() {
+            try {
+                const response = await fetch('/api/weixin_qr', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'status'})
+                });
+                const data = await response.json();
+                
+                const status = data.status;
+                const statusEl = document.getElementById('weixinQrStatus');
+                const qrImageEl = document.getElementById('weixinQrImage');
+                const qrUrlEl = document.getElementById('weixinQrUrl');
+                const refreshBtn = document.getElementById('weixinQrRefresh');
+                
+                if (status === 'wait' || status === 'starting') {
+                    if (data.qrcode_url) {
+                        // Generate QR code from URL
+                        qrImageEl.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(data.qrcode_url) + '" alt="QR Code" />';
+                        statusEl.textContent = '📱 请使用微信扫描二维码';
+                        statusEl.style.color = '#10b981';
+                    } else {
+                        qrImageEl.innerHTML = '<div style="padding: 40px;">等待二维码...</div>';
+                    }
+                    refreshBtn.style.display = 'none';
+                } else if (status === 'scaned') {
+                    statusEl.textContent = '✅ 已扫码，请确认登录...';
+                    statusEl.style.color = '#f59e0b';
+                } else if (status === 'confirmed') {
+                    statusEl.textContent = '🎉 登录成功！';
+                    statusEl.style.color = '#10b981';
+                    qrImageEl.innerHTML = '<div style="padding: 20px; font-size: 48px;">✅</div>';
+                    if (weixinQrPollInterval) {
+                        clearInterval(weixinQrPollInterval);
+                        weixinQrPollInterval = null;
+                    }
+                    // Reload platform config after 1.5s
+                    setTimeout(() => {
+                        closeWeixinQR();
+                        loadPlatformConfig();
+                        showToast('微信登录成功！', 'success');
+                    }, 1500);
+                } else if (status === 'refreshing') {
+                    statusEl.textContent = '🔄 刷新二维码...';
+                    qrImageEl.innerHTML = '<div style="padding: 40px;">刷新中...</div>';
+                } else if (status === 'expired') {
+                    statusEl.textContent = '⚠️ 二维码已过期';
+                    statusEl.style.color = '#f59e0b';
+                    refreshBtn.style.display = 'inline-block';
+                } else if (status === 'error') {
+                    statusEl.textContent = '❌ 错误: ' + (data.error || '未知错误');
+                    statusEl.style.color = '#ef4444';
+                    if (data.qrcode_url) {
+                        qrUrlEl.textContent = '或复制链接到微信打开: ' + data.qrcode_url;
+                        qrUrlEl.style.display = 'block';
+                    }
+                } else if (status === 'no_session') {
+                    statusEl.textContent = '会话已结束';
+                }
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        }
+        
+        function refreshWeixinQR() {
+            startWeixinQR();
+        }
+        
+        async function stopWeixinQR() {
+            if (weixinQrPollInterval) {
+                clearInterval(weixinQrPollInterval);
+                weixinQrPollInterval = null;
+            }
+            await fetch('/api/weixin_qr', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'stop'})
+            });
+        }
+        
+        // Save WeChat Config
+        async function saveWechatConfig() {
+            const configs = [
+                { id: 'wechatAccountId', key: 'WEIXIN_ACCOUNT_ID' },
+                { id: 'wechatBaseUrl', key: 'WEIXIN_BASE_URL' },
+                { id: 'wechatCdnUrl', key: 'WEIXIN_CDN_BASE_URL' },
+                { id: 'wechatDmPolicy', key: 'WEIXIN_DM_POLICY' },
+                { id: 'wechatAllowAll', key: 'WEIXIN_ALLOW_ALL_USERS' },
+                { id: 'wechatGroupPolicy', key: 'WEIXIN_GROUP_POLICY' },
+                { id: 'wechatAllowedUsers', key: 'WEIXIN_ALLOWED_USERS' }
+            ];
+            
+            // Handle token separately (password field)
+            const token = document.getElementById('wechatToken').value;
+            if (token) {
+                await updateEnvFile('WEIXIN_TOKEN', token);
+            }
+            
+            for (const cfg of configs) {
+                const value = document.getElementById(cfg.id).value;
+                if (value) {
+                    await updateEnvFile(cfg.key, value);
+                }
+            }
+            
+            showToast('WeChat 配置已保存，重启服务中...', 'success');
+            await controlService('restart');
+        }
+        
+        // Save Telegram Config
+        async function saveTelegramConfig() {
+            const token = document.getElementById('telegramToken').value;
+            if (token) {
+                await updateEnvFile('TELEGRAM_BOT_TOKEN', token);
+            }
+            
+            const proxy = document.getElementById('telegramProxy').value;
+            if (proxy) {
+                await updateEnvFile('TELEGRAM_PROXY', proxy);
+            }
+            
+            const users = document.getElementById('telegramAllowedUsers').value;
+            if (users) {
+                await updateEnvFile('TELEGRAM_ALLOWED_USERS', users);
+            }
+            
+            showToast('Telegram 配置已保存，重启服务中...', 'success');
+            await controlService('restart');
+        }
+        
+        // Save Hass Config
+        async function saveHassConfig() {
+            const url = document.getElementById('hassUrl').value;
+            const token = document.getElementById('hassToken').value;
+            
+            if (url) {
+                await updateEnvFile('HASS_URL', url);
+                document.getElementById('hassUrlDisplay').textContent = url;
+            }
+            if (token) {
+                await updateEnvFile('HASS_TOKEN', token);
+            }
+            
+            showToast('Home Assistant 配置已保存', 'success');
+        }
+        
+        // Test Connection
+        async function testConnection(platform) {
+            showToast(`测试 ${platform} 连接中...`, 'info');
+            
+            if (platform === 'github') {
+                const result = await execCommand(`gh auth status 2>&1`);
+                if (result.output && (result.output.includes('Logged in') || result.output.includes('✓'))) {
+                    showToast('GitHub 连接成功 ✓', 'success');
+                } else {
+                    showToast('GitHub 未登录或 Token 无效', 'error');
+                }
+            } else {
+                const result = await execCommand(`hermes gateway status 2>&1`);
+                if (result.output && result.output.includes('active')) {
+                    showToast(`${platform} 网关运行正常`, 'success');
+                } else {
+                    showToast(`${platform} 连接可能有问题`, 'error');
+                }
+            }
+        }
+        
+        // Save Proxy Config
+        async function saveProxyConfig() {
+            const proxy = document.getElementById('httpProxy').value;
+            const forceIpv4 = document.getElementById('forceIpv4').value;
+            
+            if (proxy) {
+                await execCommand(`grep -v "HTTP_PROXY" ~/.hermes/.env > ~/.hermes/.env.tmp && echo "HTTP_PROXY=${proxy}" >> ~/.hermes/.env.tmp && mv ~/.hermes/.env.tmp ~/.hermes/.env`);
+            }
+            await execCommand(`hermes config set network.force_ipv4 ${forceIpv4}`);
+            
+            showToast('代理配置已保存', 'success');
+        }
+        
+        // Service Control
+        async function controlService(action) {
+            const output = document.getElementById('serviceOutput');
+            output.style.display = 'block';
+            output.innerHTML = '<div class="log-line info">执行中...</div>';
+            
+            const result = await execCommand(`hermes gateway ${action}`);
+            output.innerHTML = `<div class="log-line ${result.error ? 'error' : 'success'}">${result.output || result.error}</div>`;
+            
+            showToast(`服务 ${action} 命令已发送`, 'info');
+            setTimeout(refreshAll, 2000);
+        }
+        
+        // Run Doctor
+        async function runDoctor() {
+            const output = document.getElementById('serviceOutput') || document.createElement('div');
+            output.id = 'serviceOutput';
+            output.className = 'log-console';
+            output.style.display = 'block';
+            document.querySelector('#services .card').appendChild(output);
+            
+            output.innerHTML = '<div class="log-line info">运行诊断...</div>';
+            const result = await execCommand('hermes doctor');
+            output.innerHTML = result.output.split('\n').map(line => {
+                if (line.toLowerCase().includes('error') || line.toLowerCase().includes('fail')) return `<div class="log-line error">${line}</div>`;
+                if (line.toLowerCase().includes('warn')) return `<div class="log-line warning">${line}</div>`;
+                return `<div class="log-line">${line}</div>`;
+            }).join('');
+        }
+        
+        // Run Backup
+        async function runBackup() {
+            const result = await execCommand('hermes backup');
+            showToast(result.output.includes('success') ? '备份已创建' : '备份完成', 'success');
+        }
+        
+        // Load Logs
+        async function loadLogs(type) {
+            let cmd = '';
+            switch(type) {
+                case 'hermes': cmd = 'tail -100 ~/.hermes/logs/*.log 2>/dev/null || echo "No logs"'; break;
+                case 'gateway': cmd = 'journalctl --user -u hermes-gateway -n 100 2>/dev/null || echo "No journal"'; break;
+                case 'system': cmd = 'dmesg | tail -50'; break;
+            }
+            
+            const result = await execCommand(cmd);
+            logsData = result.output.split('\n').filter(l => l.trim());
+            filterLogs();
+        }
+        
+        function filterLogs() {
+            const filter = document.getElementById('logFilter').value;
+            const output = document.getElementById('logOutput');
+            
+            const filtered = logsData.filter(line => {
+                if (filter === 'all') return true;
+                if (filter === 'error') return line.toLowerCase().includes('error') || line.toLowerCase().includes('fail');
+                if (filter === 'warning') return line.toLowerCase().includes('warn');
+                if (filter === 'info') return line.toLowerCase().includes('info') || !line.toLowerCase().includes('error') && !line.toLowerCase().includes('warn');
+                return true;
+            });
+            
+            output.innerHTML = filtered.map(line => {
+                let cls = '';
+                if (line.toLowerCase().includes('error')) cls = 'error';
+                else if (line.toLowerCase().includes('warn')) cls = 'warning';
+                else if (line.toLowerCase().includes('success') || line.toLowerCase().includes('done')) cls = 'success';
+                else cls = 'info';
+                return `<div class="log-line ${cls}">${escapeHtml(line)}</div>`;
+            }).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Export/Clear Logs
+        function exportLogs() {
+            const content = logsData.join('\n');
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hermes-logs-${Date.now()}.txt`;
+            a.click();
+        }
+        
+        async function clearLogs() {
+            if (confirm('确定要清除所有日志吗？')) {
+                await execCommand('rm -f ~/.hermes/logs/*.log');
+                showToast('日志已清除', 'success');
+                loadLogs('hermes');
+            }
+        }
+        
+        // Toggle password visibility
+        function toggleKey(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        
+        // Open terminal (for manual operations)
+        function openTerminal() {
+            window.open('terminal://', '_blank');
+            showToast('请在打开的终端中运行 hermes 命令', 'info');
+        }
+        
+        // Prune sessions
+        async function pruneSessions() {
+            if (confirm('确定要清理旧会话吗？')) {
+                const result = await execCommand('hermes sessions prune --older-than 30d');
+                showToast(result.output || '会话清理完成', 'success');
+            }
+        }
+        
+        // View sessions
+        async function viewSessions() {
+            const result = await execCommand('hermes sessions list');
+            const output = document.getElementById('serviceOutput') || document.createElement('div');
+            output.id = 'serviceOutput';
+            output.className = 'log-console';
+            output.style.display = 'block';
+            output.style.maxHeight = '300px';
+            output.innerHTML = result.output.split('\n').map(line => `<div class="log-line">${escapeHtml(line)}</div>`).join('');
+            document.querySelector('#services .card:last-child').appendChild(output);
+        }
+        
+        // Reload dashboard
+        function reloadDashboard() {
+            location.reload();
+        }
+        
+        // Test API key
+        async function testKey(type) {
+            showToast('测试中...', 'info');
+            const result = await execCommand(`hermes auth status ${type} 2>&1`);
+            
+            let statusEl;
+            if (type === 'minimax-cn') statusEl = document.getElementById('minimaxKeyStatus');
+            else if (type === 'telegram') statusEl = document.getElementById('telegramKeyStatus');
+            else if (type === 'hass') statusEl = document.getElementById('hassKeyStatus');
+            
+            if (result.output && !result.output.includes('error') && !result.output.includes('not found')) {
+                if (statusEl) {
+                    statusEl.textContent = '✓ 已配置';
+                    statusEl.style.color = '#34d399';
+                }
+                showToast('密钥有效', 'success');
+            } else {
+                if (statusEl) {
+                    statusEl.textContent = '✗ 未配置';
+                    statusEl.style.color = '#f87171';
+                }
+                showToast('密钥无效或未配置', 'error');
+            }
+        }
+        
+        // Load API key status on page load
+        async function loadApiKeyStatus() {
+            const result = await execCommand('hermes auth list 2>&1');
+            const output = result.output || '';
+            
+            // Check minimax
+            const minimaxEl = document.getElementById('minimaxKeyStatus');
+            if (output.includes('minimax-cn')) {
+                minimaxEl.textContent = '✓ 已配置';
+                minimaxEl.style.color = '#34d399';
+            } else {
+                minimaxEl.textContent = '✗ 未配置';
+                minimaxEl.style.color = '#f87171';
+            }
+            
+            // Check telegram (bot token in .env)
+            const tgResult = await execCommand('grep TELEGRAM_BOT_TOKEN ~/.hermes/.env 2>&1');
+            const telegramEl = document.getElementById('telegramKeyStatus');
+            if (tgResult.output && tgResult.output.includes('=') && !tgResult.output.includes('not found')) {
+                telegramEl.textContent = '✓ 已配置';
+                telegramEl.style.color = '#34d399';
+            } else {
+                telegramEl.textContent = '✗ 未配置';
+                telegramEl.style.color = '#f87171';
+            }
+            
+            // Check hass token
+            const hassResult = await execCommand('grep HASS_TOKEN ~/.hermes/.env 2>&1');
+            const hassEl = document.getElementById('hassKeyStatus');
+            if (hassResult.output && hassResult.output.includes('=') && !hassResult.output.includes('not found')) {
+                hassEl.textContent = '✓ 已配置';
+                hassEl.style.color = '#34d399';
+            } else {
+                hassEl.textContent = '✗ 未配置';
+                hassEl.style.color = '#f87171';
+            }
+        }
+    </script>
+</body>
+</html>
